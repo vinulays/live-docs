@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { use, useEffect, useRef, useState } from "react";
 import { RoomProvider, ClientSideSuspense } from "@liveblocks/react/suspense";
 import Header from "./Header";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
@@ -9,6 +9,8 @@ import ActiveCollaborators from "./ActiveCollaborators";
 import { Input } from "./ui/input";
 import { currentUser } from "@clerk/nextjs/server";
 import Image from "next/image";
+import { updateDocument } from "@/lib/actions/room.actions";
+import Loader from "./Loader";
 
 const CollaborativeRoom = ({
   roomId,
@@ -23,7 +25,27 @@ const CollaborativeRoom = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLDivElement>(null);
 
-  const updateTitleHandler = (e: React.KeyboardEvent<HTMLInputElement>) => {};
+  const updateTitleHandler = async (
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === "Enter") {
+      setLoading(true);
+
+      try {
+        if (documentTitle !== roomMetadata.title) {
+          const updatedDocument = await updateDocument(roomId, documentTitle);
+
+          if (updatedDocument) {
+            setEditing(false);
+          }
+        }
+      } catch (error) {
+        console.error(error);
+      }
+
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const handleClickOutSide = (e: MouseEvent) => {
@@ -32,6 +54,7 @@ const CollaborativeRoom = ({
         !containerRef.current.contains(e.target as Node)
       ) {
         setEditing(false);
+        updateDocument(roomId, documentTitle);
       }
     };
 
@@ -40,11 +63,17 @@ const CollaborativeRoom = ({
     return () => {
       document.removeEventListener("mousedown", handleClickOutSide);
     };
-  }, []);
+  }, [roomId, documentTitle]);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [editing]);
 
   return (
     <RoomProvider id={roomId}>
-      <ClientSideSuspense fallback={<div>Loading…</div>}>
+      <ClientSideSuspense fallback={<Loader />}>
         <div className="collaborative-room">
           <Header>
             <div
